@@ -1,0 +1,3 @@
+D:/STM32CubeMx/Project_File/STM32_Project/My_First_project/cmake-build-debug/CMakeFiles/My_First_project.elf.dir
+D:/STM32CubeMx/Project_File/STM32_Project/My_First_project/cmake-build-debug/CMakeFiles/edit_cache.dir
+D:/STM32CubeMx/Project_File/STM32_Project/My_First_project/cmake-build-debug/CMakeFiles/rebuild_cache.dir
