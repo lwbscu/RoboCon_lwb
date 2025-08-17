@@ -96,6 +96,8 @@ stm32f1xx_hal_hcd.h
 stm32f1xx_hal_mmc.h
 ../Core/Inc/stm32f1xx_hal_mmc.h
 
+../Core/Inc/stm32f1xx_it.h
+
 ../Core/Inc/tim.h
 main.h
 ../Core/Inc/main.h
@@ -270,6 +272,10 @@ stm32f1xx_hal_def.h
 stm32f1xx_hal_def.h
 ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_def.h
 
+D:/STM32CubeMx/Project_File/STM32_Project/My_First_project/Core/Src/gpio.c
+gpio.h
+D:/STM32CubeMx/Project_File/STM32_Project/My_First_project/Core/Src/gpio.h
+
 D:/STM32CubeMx/Project_File/STM32_Project/My_First_project/Core/Src/main.c
 main.h
 D:/STM32CubeMx/Project_File/STM32_Project/My_First_project/Core/Src/main.h
@@ -281,4 +287,22 @@ string.h
 -
 stdlib.h
 -
+
+D:/STM32CubeMx/Project_File/STM32_Project/My_First_project/Core/Src/stm32f1xx_hal_msp.c
+main.h
+D:/STM32CubeMx/Project_File/STM32_Project/My_First_project/Core/Src/main.h
+
+D:/STM32CubeMx/Project_File/STM32_Project/My_First_project/Core/Src/stm32f1xx_it.c
+main.h
+D:/STM32CubeMx/Project_File/STM32_Project/My_First_project/Core/Src/main.h
+stm32f1xx_it.h
+D:/STM32CubeMx/Project_File/STM32_Project/My_First_project/Core/Src/stm32f1xx_it.h
+
+D:/STM32CubeMx/Project_File/STM32_Project/My_First_project/Core/Src/tim.c
+tim.h
+D:/STM32CubeMx/Project_File/STM32_Project/My_First_project/Core/Src/tim.h
+
+D:/STM32CubeMx/Project_File/STM32_Project/My_First_project/Core/Src/usart.c
+usart.h
+D:/STM32CubeMx/Project_File/STM32_Project/My_First_project/Core/Src/usart.h
 

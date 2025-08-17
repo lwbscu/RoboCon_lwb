@@ -64,12 +64,29 @@ void MX_GPIO_Init(void);
 void MX_TIM1_Init(void);
 void MX_TIM2_Init(void);
 void MX_TIM3_Init(void);
+void MX_TIM4_Init(void);     // 新增：主电机编码器初始化函数
 void MX_USART2_UART_Init(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
 /* USER CODE BEGIN Private defines */
 #define PWM_MAX_VALUE 1000
+
+// GPIO定义 - 更新引脚分配注释
+// PA8  - TIM1_CH1 - PWM输出
+// PA9  - AIN1     - 从电机方向控制1
+// PA10 - AIN2     - 从电机方向控制2
+// PA0  - TIM2_CH1 - 从电机编码器A相
+// PA1  - TIM2_CH2 - 从电机编码器B相
+// PA2  - USART2_TX - 串口发送
+// PA3  - USART2_RX - 串口接收
+// PB0  - STBY     - TB6612使能控制（修正）
+// PB6  - TIM4_CH1 - 主电机编码器A相
+// PB7  - TIM4_CH2 - 主电机编码器B相
+// PC13 - BUTTON   - 模式切换按键
+// PC14 - BUTTON   - 正转按键
+// PC15 - BUTTON   - 反转按键
+
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

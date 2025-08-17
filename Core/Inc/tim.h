@@ -32,11 +32,13 @@ extern "C" {
 
 /* USER CODE END Includes */
 
-extern TIM_HandleTypeDef htim1;
+extern TIM_HandleTypeDef htim1;  // PWM输出定时器
 
-extern TIM_HandleTypeDef htim2;
+extern TIM_HandleTypeDef htim2;  // 从电机编码器定时器
 
-extern TIM_HandleTypeDef htim3;
+extern TIM_HandleTypeDef htim3;  // 控制定时器
+
+extern TIM_HandleTypeDef htim4;  // 新增：主电机编码器定时器
 
 /* USER CODE BEGIN Private defines */
 
@@ -45,6 +47,7 @@ extern TIM_HandleTypeDef htim3;
 void MX_TIM1_Init(void);
 void MX_TIM2_Init(void);
 void MX_TIM3_Init(void);
+void MX_TIM4_Init(void);  // 新增：主电机编码器初始化函数
 
 void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 
@@ -57,4 +60,3 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 #endif
 
 #endif /* __TIM_H__ */
-

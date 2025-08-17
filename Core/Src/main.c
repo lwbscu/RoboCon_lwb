@@ -8,6 +8,7 @@
 extern TIM_HandleTypeDef htim1;
 extern TIM_HandleTypeDef htim2;
 extern TIM_HandleTypeDef htim3;
+extern TIM_HandleTypeDef htim4;  // 新增：主电机编码器
 extern UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
@@ -22,7 +23,18 @@ typedef struct {
     float output_max, output_min;
 } PID_t;
 
-// 电机控制结构体
+// 主电机结构体（新增）
+typedef struct {
+    int32_t encoder_count;
+    int32_t last_encoder;
+    int32_t position_encoder_total;     // 位置累计编码器计数
+    float encoder_rps;                  // 编码器转速（圈/秒）
+    float wheel_rps;                    // 车轮转速（圈/秒）
+    float wheel_position;               // 车轮位置（圈）
+    float current_position;             // 当前位置（圈数）
+} MasterMotor_t;
+
+// 从电机控制结构体
 typedef struct {
     volatile float target_speed;        // 目标速度：车轮转速（圈/秒）
     volatile float target_position;     // 目标位置：车轮圈数
@@ -39,9 +51,9 @@ typedef struct {
     uint8_t speed_mode;                 // 速度模式：0,1,2
     uint8_t position_mode;              // 位置模式：0,1,2
     uint8_t enable;
-    volatile uint8_t control_mode;      // 0=按钮控制, 1=VOFA+控制
-    volatile uint8_t control_type;      // 0=速度控制, 1=位置控制, 2=串级控制
-} Motor_t;
+    volatile uint8_t control_mode;      // 0=按键控制, 1=VOFA+控制
+    volatile uint8_t control_type;      // 0=速度控制, 1=位置控制, 2=串级控制, 3=位置跟随控制
+} SlaveMotor_t;
 
 // 系统状态结构体
 typedef struct {
@@ -51,9 +63,11 @@ typedef struct {
 } System_t;
 
 // 全局变量
-Motor_t motor = {0};
-PID_t speed_pid = {0};      // 速度PID
-PID_t position_pid = {0};   // 位置PID
+MasterMotor_t master_motor = {0};    // 新增：主电机
+SlaveMotor_t slave_motor = {0};      // 重命名：从电机
+PID_t speed_pid = {0};               // 速度PID
+PID_t position_pid = {0};            // 位置PID
+PID_t follow_pid = {0};              // 新增：跟随PID
 System_t sys_status = {0};
 
 volatile uint8_t control_flag = 0;
@@ -120,14 +134,35 @@ void TestCommandProcess(void) {
     char *cmd = (char*)uart_cmd;
     printf("CMD:[%s]\n", cmd);
 
-    // 位置PID参数 - 必须放在前面，优先匹配更具体的命令
-    if (strstr(cmd, "pos_pid:kp,") != NULL) {
+    // 跟随PID参数（新增）
+    if (strstr(cmd, "follow_pid:kp,") != NULL) {
+        char *start = strstr(cmd, "follow_pid:kp,") + 14;
+        float val = atof(start);
+        float old_val = follow_pid.kp;
+        follow_pid.kp = val;
+        printf("FOLLOW_KP: %.2f -> %.2f (SUCCESS)\n", old_val, follow_pid.kp);
+    }
+    else if (strstr(cmd, "follow_pid:ki,") != NULL) {
+        char *start = strstr(cmd, "follow_pid:ki,") + 14;
+        float val = atof(start);
+        float old_val = follow_pid.ki;
+        follow_pid.ki = val;
+        printf("FOLLOW_KI: %.2f -> %.2f (SUCCESS)\n", old_val, follow_pid.ki);
+    }
+    else if (strstr(cmd, "follow_pid:kd,") != NULL) {
+        char *start = strstr(cmd, "follow_pid:kd,") + 14;
+        float val = atof(start);
+        float old_val = follow_pid.kd;
+        follow_pid.kd = val;
+        printf("FOLLOW_KD: %.2f -> %.2f (SUCCESS)\n", old_val, follow_pid.kd);
+    }
+        // 位置PID参数 - 必须放在前面，优先匹配更具体的命令
+    else if (strstr(cmd, "pos_pid:kp,") != NULL) {
         char *start = strstr(cmd, "pos_pid:kp,") + 11;
         float val = atof(start);
         float old_val = position_pid.kp;
         position_pid.kp = val;
         printf("POSITION_KP: %.2f -> %.2f (SUCCESS)\n", old_val, position_pid.kp);
-        printf("DEBUG: speed_pid.kp=%.2f, position_pid.kp=%.2f\n", speed_pid.kp, position_pid.kp);
     }
     else if (strstr(cmd, "pos_pid:ki,") != NULL) {
         char *start = strstr(cmd, "pos_pid:ki,") + 11;
@@ -135,7 +170,6 @@ void TestCommandProcess(void) {
         float old_val = position_pid.ki;
         position_pid.ki = val;
         printf("POSITION_KI: %.2f -> %.2f (SUCCESS)\n", old_val, position_pid.ki);
-        printf("DEBUG: speed_pid.ki=%.2f, position_pid.ki=%.2f\n", speed_pid.ki, position_pid.ki);
     }
     else if (strstr(cmd, "pos_pid:kd,") != NULL) {
         char *start = strstr(cmd, "pos_pid:kd,") + 11;
@@ -143,7 +177,6 @@ void TestCommandProcess(void) {
         float old_val = position_pid.kd;
         position_pid.kd = val;
         printf("POSITION_KD: %.2f -> %.2f (SUCCESS)\n", old_val, position_pid.kd);
-        printf("DEBUG: speed_pid.kd=%.2f, position_pid.kd=%.2f\n", speed_pid.kd, position_pid.kd);
     }
         // 速度PID参数 - 放在后面，只有位置PID不匹配时才检查
     else if (strstr(cmd, "pid:kp,") != NULL) {
@@ -152,7 +185,6 @@ void TestCommandProcess(void) {
         float old_val = speed_pid.kp;
         speed_pid.kp = val;
         printf("SPEED_KP: %.2f -> %.2f (SUCCESS)\n", old_val, speed_pid.kp);
-        printf("DEBUG: speed_pid.kp=%.2f, position_pid.kp=%.2f\n", speed_pid.kp, position_pid.kp);
     }
     else if (strstr(cmd, "pid:ki,") != NULL) {
         char *start = strstr(cmd, "pid:ki,") + 7;
@@ -160,7 +192,6 @@ void TestCommandProcess(void) {
         float old_val = speed_pid.ki;
         speed_pid.ki = val;
         printf("SPEED_KI: %.2f -> %.2f (SUCCESS)\n", old_val, speed_pid.ki);
-        printf("DEBUG: speed_pid.ki=%.2f, position_pid.ki=%.2f\n", speed_pid.ki, position_pid.ki);
     }
     else if (strstr(cmd, "pid:kd,") != NULL) {
         char *start = strstr(cmd, "pid:kd,") + 7;
@@ -168,27 +199,26 @@ void TestCommandProcess(void) {
         float old_val = speed_pid.kd;
         speed_pid.kd = val;
         printf("SPEED_KD: %.2f -> %.2f (SUCCESS)\n", old_val, speed_pid.kd);
-        printf("DEBUG: speed_pid.kd=%.2f, position_pid.kd=%.2f\n", speed_pid.kd, position_pid.kd);
     }
         // 速度控制
     else if (strstr(cmd, "speed:") != NULL) {
         char *start = strstr(cmd, "speed:") + 6;
         float val = atof(start);
-        motor.target_speed = val;
-        motor.control_mode = 1;
-        motor.control_type = 0;  // 速度控制模式
+        slave_motor.target_speed = val;
+        slave_motor.control_mode = 1;
+        slave_motor.control_type = 0;  // 速度控制模式
         printf("SPEED_MODE: TARGET=%.2f WHEEL_RPS\n", val);
     }
         // 位置控制
     else if (strstr(cmd, "position:") != NULL) {
         char *start = strstr(cmd, "position:") + 9;
         float val = atof(start);
-        motor.target_position = val;
-        motor.control_mode = 1;
-        motor.control_type = 1;  // 位置控制模式
+        slave_motor.target_position = val;
+        slave_motor.control_mode = 1;
+        slave_motor.control_type = 1;  // 位置控制模式
         // 重置位置累计
-        motor.position_encoder_total = 0;
-        motor.current_position = 0;
+        slave_motor.position_encoder_total = 0;
+        slave_motor.current_position = 0;
         printf("POSITION_MODE: TARGET=%.2f WHEEL_TURNS\n", val);
     }
         // 串级控制
@@ -204,51 +234,67 @@ void TestCommandProcess(void) {
             float pos_val = atof(temp_str);
             float speed_val = atof(comma_pos + 1);
 
-            motor.target_position = pos_val;
-            motor.target_speed = speed_val;
-            motor.control_mode = 1;
-            motor.control_type = 2;  // 串级控制模式
+            slave_motor.target_position = pos_val;
+            slave_motor.target_speed = speed_val;
+            slave_motor.control_mode = 1;
+            slave_motor.control_type = 2;  // 串级控制模式
             // 重置位置累计
-            motor.position_encoder_total = 0;
-            motor.current_position = 0;
+            slave_motor.position_encoder_total = 0;
+            slave_motor.current_position = 0;
             printf("CASCADE_MODE: POS=%.2f, SPEED=%.2f\n", pos_val, speed_val);
         }
+    }
+        // 位置跟随控制（新增）
+    else if (strstr(cmd, "follow") != NULL) {
+        slave_motor.control_mode = 1;
+        slave_motor.control_type = 3;  // 位置跟随控制模式
+        // 重置位置累计
+        slave_motor.position_encoder_total = 0;
+        slave_motor.current_position = 0;
+        master_motor.position_encoder_total = 0;
+        master_motor.current_position = 0;
+        printf("FOLLOW_MODE: SLAVE FOLLOWS MASTER\n");
     }
         // 方向控制
     else if (strstr(cmd, "dir:") != NULL) {
         char *start = strstr(cmd, "dir:") + 4;
         int val = atoi(start);
-        motor.direction = (val > 0) ? 1 : 0;
-        printf("DIRECTION=%s\n", motor.direction ? "REVERSE" : "FORWARD");
+        slave_motor.direction = (val > 0) ? 1 : 0;
+        printf("DIRECTION=%s\n", slave_motor.direction ? "REVERSE" : "FORWARD");
     }
         // 使能控制
     else if (strstr(cmd, "enable:") != NULL) {
         char *start = strstr(cmd, "enable:") + 7;
         int val = atoi(start);
-        motor.enable = val;
+        slave_motor.enable = val;
         printf("MOTOR_ENABLE=%s\n", val ? "ON" : "OFF");
     }
         // 控制模式 (0=按键控制, 1=VOFA+控制)
     else if (strstr(cmd, "control_mode:") != NULL) {
         char *start = strstr(cmd, "control_mode:") + 13;
         int val = atoi(start);
-        motor.control_mode = (val > 0) ? 1 : 0;
-        printf("CONTROL_MODE=%s\n", motor.control_mode ? "VOFA+" : "BUTTON");
+        slave_motor.control_mode = (val > 0) ? 1 : 0;
+        printf("CONTROL_MODE=%s\n", slave_motor.control_mode ? "VOFA+" : "BUTTON");
     }
-        // 控制类型 (0=速度, 1=位置, 2=串级)
+        // 控制类型 (0=速度, 1=位置, 2=串级, 3=跟随)
     else if (strstr(cmd, "control_type:") != NULL) {
         char *start = strstr(cmd, "control_type:") + 13;
         int val = atoi(start);
-        if (val >= 0 && val <= 2) {
-            motor.control_type = val;
+        if (val >= 0 && val <= 3) {
+            slave_motor.control_type = val;
             // 重置位置累计
-            if (motor.control_type != 0) {
-                motor.position_encoder_total = 0;
-                motor.current_position = 0;
+            if (slave_motor.control_type != 0) {
+                slave_motor.position_encoder_total = 0;
+                slave_motor.current_position = 0;
+                if (slave_motor.control_type == 3) {
+                    master_motor.position_encoder_total = 0;
+                    master_motor.current_position = 0;
+                }
             }
             printf("CONTROL_TYPE=%s\n",
-                   motor.control_type == 0 ? "SPEED" :
-                   motor.control_type == 1 ? "POSITION" : "CASCADE");
+                   slave_motor.control_type == 0 ? "SPEED" :
+                   slave_motor.control_type == 1 ? "POSITION" :
+                   slave_motor.control_type == 2 ? "CASCADE" : "FOLLOW");
         }
     }
         // 速度模式切换 (0=0.5rps, 1=1.0rps, 2=2.0rps)
@@ -256,10 +302,10 @@ void TestCommandProcess(void) {
         char *start = strstr(cmd, "speed_mode:") + 11;
         int val = atoi(start);
         if (val >= 0 && val <= 2) {
-            motor.speed_mode = val;
-            motor.target_speed = SPEED_LEVELS[motor.speed_mode];
-            motor.control_type = 0;  // 自动切换到速度控制
-            printf("SPEED_MODE_%d: %.1f RPS\n", motor.speed_mode, motor.target_speed);
+            slave_motor.speed_mode = val;
+            slave_motor.target_speed = SPEED_LEVELS[slave_motor.speed_mode];
+            slave_motor.control_type = 0;  // 自动切换到速度控制
+            printf("SPEED_MODE_%d: %.1f RPS\n", slave_motor.speed_mode, slave_motor.target_speed);
         }
     }
         // 位置模式切换 (0=1圈, 1=10圈, 2=50圈)
@@ -267,12 +313,12 @@ void TestCommandProcess(void) {
         char *start = strstr(cmd, "position_mode:") + 14;
         int val = atoi(start);
         if (val >= 0 && val <= 2) {
-            motor.position_mode = val;
-            motor.target_position = POSITION_LEVELS[motor.position_mode];
-            motor.control_type = 1;  // 自动切换到位置控制
-            motor.position_encoder_total = 0;
-            motor.current_position = 0;
-            printf("POSITION_MODE_%d: %.1f TURNS\n", motor.position_mode, motor.target_position);
+            slave_motor.position_mode = val;
+            slave_motor.target_position = POSITION_LEVELS[slave_motor.position_mode];
+            slave_motor.control_type = 1;  // 自动切换到位置控制
+            slave_motor.position_encoder_total = 0;
+            slave_motor.current_position = 0;
+            printf("POSITION_MODE_%d: %.1f TURNS\n", slave_motor.position_mode, slave_motor.target_position);
         }
     }
         // 串级模式切换 (0=低速短距, 1=中速中距, 2=高速长距)
@@ -280,15 +326,15 @@ void TestCommandProcess(void) {
         char *start = strstr(cmd, "cascade_mode:") + 13;
         int val = atoi(start);
         if (val >= 0 && val <= 2) {
-            motor.speed_mode = val;
-            motor.position_mode = val;
-            motor.target_speed = SPEED_LEVELS[motor.speed_mode];
-            motor.target_position = POSITION_LEVELS[motor.position_mode];
-            motor.control_type = 2;  // 自动切换到串级控制
-            motor.position_encoder_total = 0;
-            motor.current_position = 0;
+            slave_motor.speed_mode = val;
+            slave_motor.position_mode = val;
+            slave_motor.target_speed = SPEED_LEVELS[slave_motor.speed_mode];
+            slave_motor.target_position = POSITION_LEVELS[slave_motor.position_mode];
+            slave_motor.control_type = 2;  // 自动切换到串级控制
+            slave_motor.position_encoder_total = 0;
+            slave_motor.current_position = 0;
             printf("CASCADE_MODE_%d: SPEED=%.1f, POS=%.1f\n",
-                   val, motor.target_speed, motor.target_position);
+                   val, slave_motor.target_speed, slave_motor.target_position);
         }
     }
         // 复位
@@ -297,8 +343,12 @@ void TestCommandProcess(void) {
         speed_pid.last_error = 0;
         position_pid.integral = 0;
         position_pid.last_error = 0;
-        motor.position_encoder_total = 0;
-        motor.current_position = 0;
+        follow_pid.integral = 0;
+        follow_pid.last_error = 0;
+        slave_motor.position_encoder_total = 0;
+        slave_motor.current_position = 0;
+        master_motor.position_encoder_total = 0;
+        master_motor.current_position = 0;
         printf("PID_RESET_AND_POSITION_RESET\n");
     }
         // 信息查询
@@ -306,54 +356,59 @@ void TestCommandProcess(void) {
         printf("=== SYSTEM INFO ===\n");
         printf("ENCODER_PPR=%.0f\n", ENCODER_PPR);
         printf("WHEEL_CONVERSION=%.4f\n", WHEEL_CONVERSION);
-        printf("CONTROL_MODE=%s (%d)\n", motor.control_mode ? "VOFA+" : "BUTTON", motor.control_mode);
+        printf("CONTROL_MODE=%s (%d)\n", slave_motor.control_mode ? "VOFA+" : "BUTTON", slave_motor.control_mode);
         printf("CONTROL_TYPE=%s (%d)\n",
-               motor.control_type == 0 ? "SPEED" :
-               motor.control_type == 1 ? "POSITION" : "CASCADE", motor.control_type);
-        printf("SPEED_MODE=%d (%.1f rps)\n", motor.speed_mode, SPEED_LEVELS[motor.speed_mode]);
-        printf("POSITION_MODE=%d (%.1f turns)\n", motor.position_mode, POSITION_LEVELS[motor.position_mode]);
-        printf("DIRECTION=%s (%d)\n", motor.direction ? "REVERSE" : "FORWARD", motor.direction);
-        printf("ENABLE=%s (%d)\n", motor.enable ? "ON" : "OFF", motor.enable);
-        printf("CURRENT_SPEED=%.3f, CURRENT_POSITION=%.3f\n",
-               motor.current_speed, motor.current_position);
+               slave_motor.control_type == 0 ? "SPEED" :
+               slave_motor.control_type == 1 ? "POSITION" :
+               slave_motor.control_type == 2 ? "CASCADE" : "FOLLOW", slave_motor.control_type);
+        printf("SPEED_MODE=%d (%.1f rps)\n", slave_motor.speed_mode, SPEED_LEVELS[slave_motor.speed_mode]);
+        printf("POSITION_MODE=%d (%.1f turns)\n", slave_motor.position_mode, POSITION_LEVELS[slave_motor.position_mode]);
+        printf("DIRECTION=%s (%d)\n", slave_motor.direction ? "REVERSE" : "FORWARD", slave_motor.direction);
+        printf("ENABLE=%s (%d)\n", slave_motor.enable ? "ON" : "OFF", slave_motor.enable);
+        printf("SLAVE_SPEED=%.3f, SLAVE_POSITION=%.3f\n",
+               slave_motor.current_speed, slave_motor.current_position);
+        printf("MASTER_POSITION=%.3f\n", master_motor.current_position);
         printf("SPEED_PID: Kp=%.2f Ki=%.2f Kd=%.2f\n", speed_pid.kp, speed_pid.ki, speed_pid.kd);
         printf("POS_PID: Kp=%.2f Ki=%.2f Kd=%.2f\n", position_pid.kp, position_pid.ki, position_pid.kd);
+        printf("FOLLOW_PID: Kp=%.2f Ki=%.2f Kd=%.2f\n", follow_pid.kp, follow_pid.ki, follow_pid.kd);
     }
 }
 
 // 发送详细的调试数据 (VOFA+兼容格式) - 16通道
 void SendDetailedData(void) {
-    printf("%.3f,%.3f,%.3f,%.3f,%.1f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%d,%d,%d\n",
-           motor.target_speed,      // CH0: 目标速度（车轮圈/秒）
-           motor.current_speed,     // CH1: 当前速度（车轮圈/秒）
-           motor.target_position,   // CH2: 目标位置（车轮圈）
-           motor.current_position,  // CH3: 当前位置（车轮圈）
-           motor.pwm_output,        // CH4: PWM输出
-           speed_pid.error,         // CH5: 速度PID误差
-           position_pid.error,      // CH6: 位置PID误差
-           speed_pid.kp,            // CH7: 速度Kp参数
-           speed_pid.ki,            // CH8: 速度Ki参数
-           speed_pid.kd,            // CH9: 速度Kd参数
-           position_pid.kp,         // CH10: 位置Kp参数
-           position_pid.ki,         // CH11: 位置Ki参数
-           position_pid.kd,         // CH12: 位置Kd参数
-           motor.control_type,      // CH13: 控制类型
-           motor.direction,         // CH14: 方向
-           motor.enable);           // CH15: 使能状态
+    printf("%.3f,%.3f,%.3f,%.3f,%.1f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%d,%d,%.3f\n",
+           slave_motor.target_speed,      // CH0: 目标速度（车轮圈/秒）
+           slave_motor.current_speed,     // CH1: 当前速度（车轮圈/秒）
+           slave_motor.target_position,   // CH2: 目标位置（车轮圈）
+           slave_motor.current_position,  // CH3: 当前位置（车轮圈）
+           slave_motor.pwm_output,        // CH4: PWM输出
+           speed_pid.error,               // CH5: 速度PID误差
+           position_pid.error,            // CH6: 位置PID误差
+           speed_pid.kp,                  // CH7: 速度Kp参数
+           speed_pid.ki,                  // CH8: 速度Ki参数
+           speed_pid.kd,                  // CH9: 速度Kd参数
+           position_pid.kp,               // CH10: 位置Kp参数
+           position_pid.ki,               // CH11: 位置Ki参数
+           position_pid.kd,               // CH12: 位置Kd参数
+           slave_motor.control_type,      // CH13: 控制类型
+           slave_motor.direction,         // CH14: 方向
+           master_motor.current_position); // CH15: 主电机位置（新增）
 }
 
 // 发送系统状态信息
 void SendStatusInfo(void) {
-    const char* control_types[] = {"SPEED", "POSITION", "CASCADE"};
+    const char* control_types[] = {"SPEED", "POSITION", "CASCADE", "FOLLOW"};
     printf("=== STATUS ===\n");
     printf("CONTROL: %s | TARGET_SPEED: %.3f | CURRENT_SPEED: %.3f\n",
-           control_types[motor.control_type], motor.target_speed, motor.current_speed);
-    printf("TARGET_POS: %.3f | CURRENT_POS: %.3f | PWM: %.0f\n",
-           motor.target_position, motor.current_position, motor.pwm_output);
+           control_types[slave_motor.control_type], slave_motor.target_speed, slave_motor.current_speed);
+    printf("TARGET_POS: %.3f | SLAVE_POS: %.3f | MASTER_POS: %.3f | PWM: %.0f\n",
+           slave_motor.target_position, slave_motor.current_position, master_motor.current_position, slave_motor.pwm_output);
     printf("SPEED_PID[Kp=%.2f Ki=%.2f Kd=%.2f]\n",
            speed_pid.kp, speed_pid.ki, speed_pid.kd);
     printf("POSITION_PID[Kp=%.2f Ki=%.2f Kd=%.2f]\n",
            position_pid.kp, position_pid.ki, position_pid.kd);
+    printf("FOLLOW_PID[Kp=%.2f Ki=%.2f Kd=%.2f]\n",
+           follow_pid.kp, follow_pid.ki, follow_pid.kd);
 }
 
 // 按键检测函数
@@ -375,9 +430,9 @@ void ProcessButtons(void) {
     button_forward.current_state = ReadButton(GPIOC, GPIO_PIN_14);
     button_reverse.current_state = ReadButton(GPIOC, GPIO_PIN_15);
 
-    // 按钮模式下才响应按键
-    if (motor.control_mode == 0) {
-        // 模式按钮 - 双击切换控制类型，单击切换档位
+    // 按键模式下才响应按键
+    if (slave_motor.control_mode == 0) {
+        // 模式按键 - 双击切换控制类型，单击切换档位
         static uint32_t last_mode_press = 0;
         static uint8_t click_count = 0;
 
@@ -393,56 +448,68 @@ void ProcessButtons(void) {
 
         // 检查双击
         if (click_count >= 2 && (current_time - last_mode_press) > 100) {
-            motor.control_type = (motor.control_type + 1) % 3;
+            slave_motor.control_type = (slave_motor.control_type + 1) % 4;  // 修改：支持4种控制类型
             click_count = 0;
 
             // 重置位置累计
-            if (motor.control_type != 0) {
-                motor.position_encoder_total = 0;
-                motor.current_position = 0;
+            if (slave_motor.control_type != 0) {
+                slave_motor.position_encoder_total = 0;
+                slave_motor.current_position = 0;
+                if (slave_motor.control_type == 3) {
+                    master_motor.position_encoder_total = 0;
+                    master_motor.current_position = 0;
+                }
             }
 
             printf("BUTTON_CONTROL_TYPE: %s\n",
-                   motor.control_type == 0 ? "SPEED" :
-                   motor.control_type == 1 ? "POSITION" : "CASCADE");
+                   slave_motor.control_type == 0 ? "SPEED" :
+                   slave_motor.control_type == 1 ? "POSITION" :
+                   slave_motor.control_type == 2 ? "CASCADE" : "FOLLOW");
         }
             // 检查单击
         else if (click_count == 1 && (current_time - last_mode_press) > 500) {
-            if (motor.control_type == 0) {
+            if (slave_motor.control_type == 0) {
                 // 速度控制模式
-                motor.speed_mode = (motor.speed_mode + 1) % 3;
-                motor.target_speed = SPEED_LEVELS[motor.speed_mode];
-                printf("SPEED_MODE_%d: %.1f RPS\n", motor.speed_mode, motor.target_speed);
-            } else if (motor.control_type == 1) {
+                slave_motor.speed_mode = (slave_motor.speed_mode + 1) % 3;
+                slave_motor.target_speed = SPEED_LEVELS[slave_motor.speed_mode];
+                printf("SPEED_MODE_%d: %.1f RPS\n", slave_motor.speed_mode, slave_motor.target_speed);
+            } else if (slave_motor.control_type == 1) {
                 // 位置控制模式
-                motor.position_mode = (motor.position_mode + 1) % 3;
-                motor.target_position = POSITION_LEVELS[motor.position_mode];
-                motor.position_encoder_total = 0;
-                motor.current_position = 0;
-                printf("POSITION_MODE_%d: %.1f TURNS\n", motor.position_mode, motor.target_position);
-            } else {
+                slave_motor.position_mode = (slave_motor.position_mode + 1) % 3;
+                slave_motor.target_position = POSITION_LEVELS[slave_motor.position_mode];
+                slave_motor.position_encoder_total = 0;
+                slave_motor.current_position = 0;
+                printf("POSITION_MODE_%d: %.1f TURNS\n", slave_motor.position_mode, slave_motor.target_position);
+            } else if (slave_motor.control_type == 2) {
                 // 串级控制模式
-                motor.speed_mode = (motor.speed_mode + 1) % 3;
-                motor.position_mode = (motor.position_mode + 1) % 3;
-                motor.target_speed = SPEED_LEVELS[motor.speed_mode];
-                motor.target_position = POSITION_LEVELS[motor.position_mode];
-                motor.position_encoder_total = 0;
-                motor.current_position = 0;
+                slave_motor.speed_mode = (slave_motor.speed_mode + 1) % 3;
+                slave_motor.position_mode = (slave_motor.position_mode + 1) % 3;
+                slave_motor.target_speed = SPEED_LEVELS[slave_motor.speed_mode];
+                slave_motor.target_position = POSITION_LEVELS[slave_motor.position_mode];
+                slave_motor.position_encoder_total = 0;
+                slave_motor.current_position = 0;
                 printf("CASCADE_MODE_%d: SPEED=%.1f, POS=%.1f\n",
-                       motor.speed_mode, motor.target_speed, motor.target_position);
+                       slave_motor.speed_mode, slave_motor.target_speed, slave_motor.target_position);
+            } else if (slave_motor.control_type == 3) {
+                // 跟随控制模式 - 重置位置
+                slave_motor.position_encoder_total = 0;
+                slave_motor.current_position = 0;
+                master_motor.position_encoder_total = 0;
+                master_motor.current_position = 0;
+                printf("FOLLOW_MODE_RESET\n");
             }
             click_count = 0;
         }
 
-        // 正转按钮
+        // 正转按键
         if (button_forward.current_state && !button_forward.last_state) {
-            motor.direction = 0;
+            slave_motor.direction = 0;
             printf("FORWARD\n");
         }
 
-        // 反转按钮
+        // 反转按键
         if (button_reverse.current_state && !button_reverse.last_state) {
-            motor.direction = 1;
+            slave_motor.direction = 1;
             printf("REVERSE\n");
         }
     }
@@ -506,6 +573,33 @@ float PositionPIDControl(float target_position, float current_position) {
     return position_pid.output;
 }
 
+// 跟随PID控制（新增）
+float FollowPIDControl(float master_position, float slave_position) {
+    follow_pid.error = master_position - slave_position;
+
+    follow_pid.p_term = follow_pid.kp * follow_pid.error;
+
+    follow_pid.integral += follow_pid.error / CONTROL_FREQUENCY;
+    // 积分限幅
+    float integral_limit = 50.0f / (follow_pid.ki + 0.1f);
+    if (follow_pid.integral > integral_limit) follow_pid.integral = integral_limit;
+    if (follow_pid.integral < -integral_limit) follow_pid.integral = -integral_limit;
+    follow_pid.i_term = follow_pid.ki * follow_pid.integral;
+
+    follow_pid.derivative = (follow_pid.error - follow_pid.last_error) * CONTROL_FREQUENCY;
+    follow_pid.d_term = follow_pid.kd * follow_pid.derivative;
+
+    follow_pid.output = follow_pid.p_term + follow_pid.i_term + follow_pid.d_term;
+
+    // 跟随PID输出限制在合理的速度范围
+    if (follow_pid.output > 3.0f) follow_pid.output = 3.0f;
+    if (follow_pid.output < -3.0f) follow_pid.output = -3.0f;
+
+    follow_pid.last_error = follow_pid.error;
+
+    return follow_pid.output;
+}
+
 /* USER CODE END PV */
 
 int main(void)
@@ -518,10 +612,11 @@ int main(void)
     MX_TIM1_Init();
     MX_TIM2_Init();
     MX_TIM3_Init();
+    MX_TIM4_Init();  // 新增：主电机编码器
     MX_USART2_UART_Init();
 
     // 初始化TB6612
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, GPIO_PIN_SET);  // 使能TB6612
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);  // 修正：使能TB6612（PB0）
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_9, GPIO_PIN_RESET);
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_10, GPIO_PIN_RESET);
 
@@ -539,15 +634,22 @@ int main(void)
     position_pid.output_max = 3.0f;
     position_pid.output_min = -3.0f;
 
+    // 初始化跟随PID参数（新增）
+    follow_pid.kp = 5.0f;
+    follow_pid.ki = 0.2f;
+    follow_pid.kd = 0.1f;
+    follow_pid.output_max = 3.0f;
+    follow_pid.output_min = -3.0f;
+
     // 初始化电机参数
-    motor.target_speed = SPEED_LEVELS[1];        // 默认1圈/秒
-    motor.target_position = POSITION_LEVELS[1];  // 默认10圈
-    motor.enable = 1;
-    motor.speed_mode = 1;
-    motor.position_mode = 1;
-    motor.direction = 0;
-    motor.control_mode = 1;  // 默认VOFA+控制模式
-    motor.control_type = 0;  // 默认速度控制
+    slave_motor.target_speed = SPEED_LEVELS[1];        // 默认1圈/秒
+    slave_motor.target_position = POSITION_LEVELS[1];  // 默认10圈
+    slave_motor.enable = 1;
+    slave_motor.speed_mode = 1;
+    slave_motor.position_mode = 1;
+    slave_motor.direction = 0;
+    slave_motor.control_mode = 1;  // 默认VOFA+控制模式
+    slave_motor.control_type = 0;  // 默认速度控制
 
     // 初始化系统状态
     sys_status.data_send_mode = 1;
@@ -555,24 +657,25 @@ int main(void)
 
     // 启动定时器
     HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
-    HAL_TIM_Encoder_Start(&htim2, TIM_CHANNEL_ALL);
+    HAL_TIM_Encoder_Start(&htim2, TIM_CHANNEL_ALL);  // 从电机编码器
+    HAL_TIM_Encoder_Start(&htim4, TIM_CHANNEL_ALL);  // 新增：主电机编码器
     HAL_TIM_Base_Start_IT(&htim3);
 
     // 启动串口接收中断
-    // 启动串口接收中断
-    printf("=== OPTIMIZED MOTOR CONTROL SYSTEM ===\n");
+    printf("=== OPTIMIZED MOTOR CONTROL SYSTEM WITH FOLLOW MODE ===\n");
     HAL_UART_Receive_IT(&huart2, &rx_byte, 1);
     printf("UART_READY\n");
 
     __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 0);
 
     printf("ENCODER_PPR=%.0f, CONVERSION=%.4f\n", ENCODER_PPR, WHEEL_CONVERSION);
-    printf("CONTROL_MODES: 0=SPEED, 1=POSITION, 2=CASCADE\n");
+    printf("CONTROL_MODES: 0=SPEED, 1=POSITION, 2=CASCADE, 3=FOLLOW\n");
     printf("SPEED_LEVELS: 0=%.1frps, 1=%.1frps, 2=%.1frps\n",
            SPEED_LEVELS[0], SPEED_LEVELS[1], SPEED_LEVELS[2]);
     printf("POSITION_LEVELS: 0=%.0fturns, 1=%.0fturns, 2=%.0fturns\n",
            POSITION_LEVELS[0], POSITION_LEVELS[1], POSITION_LEVELS[2]);
-    printf("DEFAULT: SPEED_MODE_%d=%.2f RPS\n", motor.speed_mode, motor.target_speed);
+    printf("DEFAULT: SPEED_MODE_%d=%.2f RPS\n", slave_motor.speed_mode, slave_motor.target_speed);
+    printf("NEW: FOLLOW_MODE ADDED - SLAVE FOLLOWS MASTER POSITION\n");
     printf("USE INTEGER PARAMETERS FOR MODE CONTROL!\n");
     /* USER CODE END 2 */
 
@@ -590,81 +693,113 @@ int main(void)
         if (control_flag) {
             control_flag = 0;
 
-            // 读取编码器
-            motor.encoder_count = (int32_t)__HAL_TIM_GET_COUNTER(&htim2);
-            int32_t encoder_diff = motor.encoder_count - motor.last_encoder;
-            motor.last_encoder = motor.encoder_count;
+            // 读取从电机编码器
+            slave_motor.encoder_count = (int32_t)__HAL_TIM_GET_COUNTER(&htim2);
+            int32_t slave_encoder_diff = slave_motor.encoder_count - slave_motor.last_encoder;
+            slave_motor.last_encoder = slave_motor.encoder_count;
 
-            // 处理编码器溢出
-            if (encoder_diff > 32768) encoder_diff -= 65536;
-            if (encoder_diff < -32768) encoder_diff += 65536;
+            // 处理从电机编码器溢出
+            if (slave_encoder_diff > 32768) slave_encoder_diff -= 65536;
+            if (slave_encoder_diff < -32768) slave_encoder_diff += 65536;
 
-            // 累计位置编码器计数
-            motor.position_encoder_total += encoder_diff;
+            // 累计从电机位置编码器计数
+            slave_motor.position_encoder_total += slave_encoder_diff;
 
-            // 计算编码器转速（圈/秒）
-            motor.encoder_rps = (float)encoder_diff * CONTROL_FREQUENCY / ENCODER_PPR;
+            // 计算从电机编码器转速（圈/秒）
+            slave_motor.encoder_rps = (float)slave_encoder_diff * CONTROL_FREQUENCY / ENCODER_PPR;
 
-            // 转换为车轮转速和位置
-            motor.wheel_rps = motor.encoder_rps * WHEEL_CONVERSION;
-            motor.current_speed = fabs(motor.wheel_rps);
-            motor.wheel_position = (float)motor.position_encoder_total * WHEEL_CONVERSION / ENCODER_PPR;
-            motor.current_position = fabs(motor.wheel_position);
+            // 转换为从电机车轮转速和位置
+            slave_motor.wheel_rps = slave_motor.encoder_rps * WHEEL_CONVERSION;
+            slave_motor.current_speed = fabs(slave_motor.wheel_rps);
+            slave_motor.wheel_position = (float)slave_motor.position_encoder_total * WHEEL_CONVERSION / ENCODER_PPR;
+            slave_motor.current_position = fabs(slave_motor.wheel_position);
+
+            // 读取主电机编码器（新增）
+            master_motor.encoder_count = (int32_t)__HAL_TIM_GET_COUNTER(&htim4);
+            int32_t master_encoder_diff = master_motor.encoder_count - master_motor.last_encoder;
+            master_motor.last_encoder = master_motor.encoder_count;
+
+            // 处理主电机编码器溢出
+            if (master_encoder_diff > 32768) master_encoder_diff -= 65536;
+            if (master_encoder_diff < -32768) master_encoder_diff += 65536;
+
+            // 累计主电机位置编码器计数
+            master_motor.position_encoder_total += master_encoder_diff;
+
+            // 计算主电机编码器转速（圈/秒）
+            master_motor.encoder_rps = (float)master_encoder_diff * CONTROL_FREQUENCY / ENCODER_PPR;
+
+            // 转换为主电机车轮转速和位置
+            master_motor.wheel_rps = master_motor.encoder_rps * WHEEL_CONVERSION;
+            master_motor.wheel_position = (float)master_motor.position_encoder_total * WHEEL_CONVERSION / ENCODER_PPR;
+            master_motor.current_position = fabs(master_motor.wheel_position);
 
             // 控制逻辑
-            if (motor.enable) {
+            if (slave_motor.enable) {
                 float target_encoder_rps = 0;
 
-                switch (motor.control_type) {
+                switch (slave_motor.control_type) {
                     case 0: // 速度控制模式
-                        target_encoder_rps = motor.target_speed / WHEEL_CONVERSION;
-                        if (motor.direction == 1) target_encoder_rps = -target_encoder_rps;
-                        motor.pwm_output = SpeedPIDControl(target_encoder_rps, motor.encoder_rps);
+                        target_encoder_rps = slave_motor.target_speed / WHEEL_CONVERSION;
+                        if (slave_motor.direction == 1) target_encoder_rps = -target_encoder_rps;
+                        slave_motor.pwm_output = SpeedPIDControl(target_encoder_rps, slave_motor.encoder_rps);
                         break;
 
                     case 1: // 位置控制模式
                     {
-                        float target_wheel_position = motor.target_position;
-                        if (motor.direction == 1) target_wheel_position = -target_wheel_position;
-                        float position_speed_output = PositionPIDControl(target_wheel_position, motor.wheel_position);
+                        float target_wheel_position = slave_motor.target_position;
+                        if (slave_motor.direction == 1) target_wheel_position = -target_wheel_position;
+                        float position_speed_output = PositionPIDControl(target_wheel_position, slave_motor.wheel_position);
                         target_encoder_rps = position_speed_output / WHEEL_CONVERSION;
-                        motor.pwm_output = SpeedPIDControl(target_encoder_rps, motor.encoder_rps);
+                        slave_motor.pwm_output = SpeedPIDControl(target_encoder_rps, slave_motor.encoder_rps);
                     }
                         break;
 
                     case 2: // 串级控制模式
                     {
-                        float target_wheel_position = motor.target_position;
-                        if (motor.direction == 1) target_wheel_position = -target_wheel_position;
-                        float position_speed_output = PositionPIDControl(target_wheel_position, motor.wheel_position);
+                        float target_wheel_position = slave_motor.target_position;
+                        if (slave_motor.direction == 1) target_wheel_position = -target_wheel_position;
+                        float position_speed_output = PositionPIDControl(target_wheel_position, slave_motor.wheel_position);
 
                         // 限制位置环输出的速度不超过设定最大速度
-                        if (fabs(position_speed_output) > motor.target_speed) {
+                        if (fabs(position_speed_output) > slave_motor.target_speed) {
                             position_speed_output = (position_speed_output > 0) ?
-                                                    motor.target_speed : -motor.target_speed;
+                                                    slave_motor.target_speed : -slave_motor.target_speed;
                         }
 
                         target_encoder_rps = position_speed_output / WHEEL_CONVERSION;
-                        motor.pwm_output = SpeedPIDControl(target_encoder_rps, motor.encoder_rps);
+                        slave_motor.pwm_output = SpeedPIDControl(target_encoder_rps, slave_motor.encoder_rps);
+                    }
+                        break;
+
+                    case 3: // 位置跟随控制模式（新增）
+                    {
+                        // 使用跟随PID控制器，从电机跟随主电机位置
+                        float follow_speed_output = FollowPIDControl(master_motor.wheel_position, slave_motor.wheel_position);
+                        target_encoder_rps = follow_speed_output / WHEEL_CONVERSION;
+                        slave_motor.pwm_output = SpeedPIDControl(target_encoder_rps, slave_motor.encoder_rps);
+
+                        // 更新目标位置为主电机当前位置（用于显示）
+                        slave_motor.target_position = master_motor.current_position;
                     }
                         break;
                 }
             } else {
-                motor.pwm_output = 0;
+                slave_motor.pwm_output = 0;
             }
 
             // 设置电机方向和PWM
-            float pwm_abs = fabs(motor.pwm_output);
+            float pwm_abs = fabs(slave_motor.pwm_output);
 
             // 死区补偿
             if (pwm_abs > 5.0f && pwm_abs < 100.0f) {
                 pwm_abs = 100.0f;
             }
 
-            if (motor.pwm_output > 0) {
+            if (slave_motor.pwm_output > 0) {
                 HAL_GPIO_WritePin(GPIOA, GPIO_PIN_9, GPIO_PIN_SET);
                 HAL_GPIO_WritePin(GPIOA, GPIO_PIN_10, GPIO_PIN_RESET);
-            } else if (motor.pwm_output < 0) {
+            } else if (slave_motor.pwm_output < 0) {
                 HAL_GPIO_WritePin(GPIOA, GPIO_PIN_9, GPIO_PIN_RESET);
                 HAL_GPIO_WritePin(GPIOA, GPIO_PIN_10, GPIO_PIN_SET);
             } else {
