@@ -6,6 +6,8 @@ CMakeFiles/My_First_project.elf.dir/startup/startup_stm32f103xb.s.obj: ../startu
 CMakeFiles/My_First_project.elf.dir/Core/Src/gpio.c.obj: ../Core/Inc/gpio.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/gpio.c.obj: ../Core/Inc/main.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/gpio.c.obj: ../Core/Inc/stm32f1xx_hal_conf.h
+CMakeFiles/My_First_project.elf.dir/Core/Src/gpio.c.obj: ../Core/Inc/tim.h
+CMakeFiles/My_First_project.elf.dir/Core/Src/gpio.c.obj: ../Core/Inc/usart.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/gpio.c.obj: ../Drivers/CMSIS/Device/ST/STM32F1xx/Include/stm32f103xb.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/gpio.c.obj: ../Drivers/CMSIS/Device/ST/STM32F1xx/Include/stm32f1xx.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/gpio.c.obj: ../Drivers/CMSIS/Device/ST/STM32F1xx/Include/system_stm32f1xx.h
@@ -36,8 +38,11 @@ CMakeFiles/My_First_project.elf.dir/Core/Src/gpio.c.obj: ../Drivers/STM32F1xx_HA
 CMakeFiles/My_First_project.elf.dir/Core/Src/gpio.c.obj: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/gpio.c.obj: ../Core/Src/gpio.c
 
+CMakeFiles/My_First_project.elf.dir/Core/Src/main.c.obj: ../Core/Inc/gpio.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/main.c.obj: ../Core/Inc/main.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/main.c.obj: ../Core/Inc/stm32f1xx_hal_conf.h
+CMakeFiles/My_First_project.elf.dir/Core/Src/main.c.obj: ../Core/Inc/tim.h
+CMakeFiles/My_First_project.elf.dir/Core/Src/main.c.obj: ../Core/Inc/usart.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/main.c.obj: ../Drivers/CMSIS/Device/ST/STM32F1xx/Include/stm32f103xb.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/main.c.obj: ../Drivers/CMSIS/Device/ST/STM32F1xx/Include/stm32f1xx.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/main.c.obj: ../Drivers/CMSIS/Device/ST/STM32F1xx/Include/system_stm32f1xx.h
@@ -68,8 +73,11 @@ CMakeFiles/My_First_project.elf.dir/Core/Src/main.c.obj: ../Drivers/STM32F1xx_HA
 CMakeFiles/My_First_project.elf.dir/Core/Src/main.c.obj: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/main.c.obj: ../Core/Src/main.c
 
+CMakeFiles/My_First_project.elf.dir/Core/Src/stm32f1xx_hal_msp.c.obj: ../Core/Inc/gpio.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/stm32f1xx_hal_msp.c.obj: ../Core/Inc/main.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/stm32f1xx_hal_msp.c.obj: ../Core/Inc/stm32f1xx_hal_conf.h
+CMakeFiles/My_First_project.elf.dir/Core/Src/stm32f1xx_hal_msp.c.obj: ../Core/Inc/tim.h
+CMakeFiles/My_First_project.elf.dir/Core/Src/stm32f1xx_hal_msp.c.obj: ../Core/Inc/usart.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/stm32f1xx_hal_msp.c.obj: ../Drivers/CMSIS/Device/ST/STM32F1xx/Include/stm32f103xb.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/stm32f1xx_hal_msp.c.obj: ../Drivers/CMSIS/Device/ST/STM32F1xx/Include/stm32f1xx.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/stm32f1xx_hal_msp.c.obj: ../Drivers/CMSIS/Device/ST/STM32F1xx/Include/system_stm32f1xx.h
@@ -100,9 +108,12 @@ CMakeFiles/My_First_project.elf.dir/Core/Src/stm32f1xx_hal_msp.c.obj: ../Drivers
 CMakeFiles/My_First_project.elf.dir/Core/Src/stm32f1xx_hal_msp.c.obj: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/stm32f1xx_hal_msp.c.obj: ../Core/Src/stm32f1xx_hal_msp.c
 
+CMakeFiles/My_First_project.elf.dir/Core/Src/stm32f1xx_it.c.obj: ../Core/Inc/gpio.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/stm32f1xx_it.c.obj: ../Core/Inc/main.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/stm32f1xx_it.c.obj: ../Core/Inc/stm32f1xx_hal_conf.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/stm32f1xx_it.c.obj: ../Core/Inc/stm32f1xx_it.h
+CMakeFiles/My_First_project.elf.dir/Core/Src/stm32f1xx_it.c.obj: ../Core/Inc/tim.h
+CMakeFiles/My_First_project.elf.dir/Core/Src/stm32f1xx_it.c.obj: ../Core/Inc/usart.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/stm32f1xx_it.c.obj: ../Drivers/CMSIS/Device/ST/STM32F1xx/Include/stm32f103xb.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/stm32f1xx_it.c.obj: ../Drivers/CMSIS/Device/ST/STM32F1xx/Include/stm32f1xx.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/stm32f1xx_it.c.obj: ../Drivers/CMSIS/Device/ST/STM32F1xx/Include/system_stm32f1xx.h
@@ -166,9 +177,11 @@ CMakeFiles/My_First_project.elf.dir/Core/Src/system_stm32f1xx.c.obj: ../Drivers/
 CMakeFiles/My_First_project.elf.dir/Core/Src/system_stm32f1xx.c.obj: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/system_stm32f1xx.c.obj: ../Core/Src/system_stm32f1xx.c
 
+CMakeFiles/My_First_project.elf.dir/Core/Src/tim.c.obj: ../Core/Inc/gpio.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/tim.c.obj: ../Core/Inc/main.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/tim.c.obj: ../Core/Inc/stm32f1xx_hal_conf.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/tim.c.obj: ../Core/Inc/tim.h
+CMakeFiles/My_First_project.elf.dir/Core/Src/tim.c.obj: ../Core/Inc/usart.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/tim.c.obj: ../Drivers/CMSIS/Device/ST/STM32F1xx/Include/stm32f103xb.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/tim.c.obj: ../Drivers/CMSIS/Device/ST/STM32F1xx/Include/stm32f1xx.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/tim.c.obj: ../Drivers/CMSIS/Device/ST/STM32F1xx/Include/system_stm32f1xx.h
@@ -199,8 +212,10 @@ CMakeFiles/My_First_project.elf.dir/Core/Src/tim.c.obj: ../Drivers/STM32F1xx_HAL
 CMakeFiles/My_First_project.elf.dir/Core/Src/tim.c.obj: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/tim.c.obj: ../Core/Src/tim.c
 
+CMakeFiles/My_First_project.elf.dir/Core/Src/usart.c.obj: ../Core/Inc/gpio.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/usart.c.obj: ../Core/Inc/main.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/usart.c.obj: ../Core/Inc/stm32f1xx_hal_conf.h
+CMakeFiles/My_First_project.elf.dir/Core/Src/usart.c.obj: ../Core/Inc/tim.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/usart.c.obj: ../Core/Inc/usart.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/usart.c.obj: ../Drivers/CMSIS/Device/ST/STM32F1xx/Include/stm32f103xb.h
 CMakeFiles/My_First_project.elf.dir/Core/Src/usart.c.obj: ../Drivers/CMSIS/Device/ST/STM32F1xx/Include/stm32f1xx.h
